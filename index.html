@@ -1,0 +1,726 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Ticket Heat — where &amp; when Phoenix tickets, crashes &amp; DUIs happen</title>
+<meta name="description" content="A dark heatmap of Phoenix traffic enforcement and incidents: where & when police write tickets, and where crashes, hit-and-runs, drunk-driver and street-racing calls cluster. Slide through the hours, see the worst blocks. Public records, 2018–2025. History, not a prediction.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23d97706'/%3E%3Cpath d='M5.5 11h21v3.2a1.8 1.8 0 0 0 0 3.6V21h-21v-3.2a1.8 1.8 0 0 0 0-3.6z' fill='%23fff'/%3E%3Cpath d='M19.4 12.4v7.2' stroke='%23d97706' stroke-width='1.8' stroke-dasharray='2 2'/%3E%3C/svg%3E">
+<meta property="og:title" content="Ticket Heat — Phoenix traffic tickets, crashes & DUIs">
+<meta property="og:description" content="Where & when Phoenix writes tickets and where crashes, hit-and-runs and drunk drivers cluster. Open data, no account.">
+<meta name="theme-color" content="#0c0a08">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0c0a08; --panel:rgba(20,18,15,.74); --panel-solid:#16130f;
+    --line:rgba(232,217,181,.14); --ink:#f3ecdc; --ink-dim:#b9ad95; --accent:#e8b04a;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font-family:Geist,system-ui,sans-serif;overflow:hidden;-webkit-text-size-adjust:100%}
+  #map{position:fixed;inset:0;background:var(--bg)}
+  .mono{font-family:'Geist Mono',ui-monospace,monospace}
+  .glass{background:var(--panel);backdrop-filter:blur(13px);-webkit-backdrop-filter:blur(13px);
+    border:1px solid var(--line);border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,.45)}
+
+  /* search bar (top-center) */
+  #search{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:600;display:flex;align-items:center;gap:7px;padding:5px 6px 5px 12px;width:min(390px,40vw)}
+  #search .si{width:16px;height:16px;color:var(--ink-dim);flex:none}
+  #search input{flex:1;min-width:0;background:none;border:none;outline:none;color:var(--ink);font-family:inherit;font-size:13.5px}
+  #search input::placeholder{color:var(--ink-dim)}
+  #search .sbtn{appearance:none;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--ink-dim);
+    width:28px;height:28px;border-radius:8px;cursor:pointer;flex:none;display:flex;align-items:center;justify-content:center;transition:.13s}
+  #search .sbtn:hover{color:var(--accent);border-color:rgba(232,176,74,.4)}
+  #search .sbtn svg{width:15px;height:15px}
+  #search .sbtn.busy{color:var(--accent);animation:spin .8s linear infinite}
+
+  /* transient toast */
+  #toast{position:fixed;bottom:58px;left:50%;transform:translateX(-50%) translateY(8px);z-index:800;
+    background:var(--panel-solid);border:1px solid var(--line);color:var(--ink);font-size:12.5px;
+    padding:8px 14px;border-radius:10px;box-shadow:0 8px 26px rgba(0,0,0,.5);opacity:0;pointer-events:none;
+    transition:.2s;max-width:80vw;text-align:center}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  /* "you are here" / search-result pin */
+  .locpin{width:15px;height:15px;border-radius:50%;background:#3aa0ff;border:2.5px solid #fff;
+    box-shadow:0 0 0 4px rgba(58,160,255,.3),0 2px 8px rgba(0,0,0,.55)}
+
+  /* brand */
+  #brand{position:fixed;top:14px;left:14px;z-index:600;display:flex;align-items:center;gap:10px;padding:9px 14px 9px 11px}
+  #brand svg{width:23px;height:23px;color:var(--accent);flex:none}
+  #brand .t b{font-weight:600;font-size:16.5px;letter-spacing:.2px}
+  #brand .t span{display:block;font-size:10.5px;color:var(--ink-dim);margin-top:1px}
+
+  /* leaderboard (left) */
+  #board{position:fixed;top:70px;left:14px;z-index:600;width:264px;max-height:calc(100vh - 232px);
+    display:flex;flex-direction:column;padding:13px 13px 6px}
+  #board .bh{font-size:10px;letter-spacing:1.1px;text-transform:uppercase;color:var(--ink-dim);font-weight:500}
+  #board .bt{font-size:14.5px;font-weight:600;margin:3px 0 2px}
+  #board .bs{font-size:11px;color:var(--ink-dim);margin-bottom:9px}
+  #board .blist{overflow-y:auto;margin:0 -5px;padding:0 5px}
+  #board .blist::-webkit-scrollbar{width:7px}
+  #board .blist::-webkit-scrollbar-thumb{background:rgba(232,217,181,.18);border-radius:4px}
+  .lb{display:flex;align-items:center;gap:9px;padding:6px 6px;border-radius:8px;cursor:pointer;transition:.12s}
+  .lb:hover{background:rgba(255,255,255,.06)}
+  .lb .rk{font-family:'Geist Mono',monospace;font-size:12px;color:var(--accent);font-weight:600;width:20px;text-align:right;flex:none}
+  .lb .mn{flex:1;min-width:0}
+  .lb .ad{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lb .ct{font-size:13px;font-weight:600;flex:none;color:var(--ink)}
+  .lb .ct span{font-size:10px;color:var(--ink-dim);font-weight:400}
+  #board .bleg{border-top:1px solid var(--line);margin-top:7px;padding-top:8px}
+  #board .bleg .bar{height:8px;border-radius:5px;margin-bottom:4px;
+    background:linear-gradient(90deg,#2b1a55,#2f6df0,#1fb6a6,#bfe04a,#f5b22e,#ef5a3a)}
+  #board .bleg .tk{display:flex;justify-content:space-between;font-size:10px;color:var(--ink-dim)}
+
+  /* category + day panel (right) */
+  #panel{position:fixed;top:14px;right:14px;z-index:600;width:226px;padding:12px;max-height:calc(100vh - 28px);overflow-y:auto}
+  #panel h4{margin:13px 0 6px;font-size:10px;letter-spacing:1.1px;text-transform:uppercase;color:var(--ink-dim);font-weight:500}
+  #panel h4:first-child{margin-top:0}
+  #panel h4 small{text-transform:none;letter-spacing:0;color:#8a8470;font-weight:400;font-size:10px}
+  .seg{display:flex;gap:5px;flex-wrap:wrap}
+  .seg.col3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px}
+  .seg.days{display:grid;grid-template-columns:repeat(8,1fr);gap:4px}
+  .seg.yrs{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+  .seg.yrs button{padding:6px 0;font-size:11.5px}
+  .seg button{appearance:none;border:1px solid var(--line);background:rgba(255,255,255,.03);
+    color:var(--ink-dim);font-family:inherit;font-size:12px;padding:7px 6px;border-radius:8px;cursor:pointer;
+    transition:.12s;white-space:nowrap}
+  .seg.days button{padding:6px 0;font-size:11px}
+  .seg button:hover{color:var(--ink);border-color:rgba(232,217,181,.3)}
+  .seg button.on{background:var(--accent);color:#1a1305;border-color:var(--accent);font-weight:600}
+  .seg.cats button{flex:1;text-align:center}
+
+  /* time slider + histogram */
+  #time{position:fixed;left:50%;transform:translateX(-50%);bottom:13px;z-index:600;
+    display:flex;flex-direction:column;gap:6px;padding:8px 14px 9px;max-width:min(680px,94vw);width:580px}
+  #time .trow{display:flex;align-items:center;gap:11px}
+  #insight{font-size:11.5px;color:var(--ink-dim);text-align:center;line-height:1.3;min-height:15px;letter-spacing:.1px}
+  #insight b{color:var(--ink);font-weight:600}
+  .slwrap{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}
+  #hist{display:flex;align-items:flex-end;gap:1.5px;height:30px}
+  #hist .hb{flex:1;min-width:0;background:rgba(232,176,74,.28);border-radius:2px 2px 0 0;transition:background .1s,height .25s;cursor:pointer}
+  #hist .hb:hover{background:rgba(232,176,74,.55)}
+  #hist .hb.cur{background:var(--accent)}
+  #time .play{appearance:none;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--ink);
+    width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:13px;flex:none}
+  #time .alld{appearance:none;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--ink-dim);
+    font-family:inherit;font-size:11.5px;padding:0 10px;height:30px;border-radius:8px;cursor:pointer;flex:none}
+  #time .alld.on{background:var(--accent);color:#1a1305;border-color:var(--accent);font-weight:600}
+  #time input[type=range]{flex:1;accent-color:var(--accent);cursor:pointer}
+  #time input[type=range].dim{opacity:.4}   /* all-day mode: slider idle but still draggable */
+  #time .now{font-size:13px;min-width:118px;text-align:right;color:var(--ink)}
+  #time .now b{color:var(--accent);font-weight:600}
+
+  /* footer + about */
+  #foot{position:fixed;right:14px;bottom:13px;z-index:600;font-size:11px;color:var(--ink-dim);display:flex;align-items:center;gap:6px;padding:6px 11px}
+  #foot a{color:var(--ink);text-decoration:none}#foot a:hover{color:var(--accent)}
+  #foot svg{width:13px;height:13px;color:var(--accent)}
+  #note{position:fixed;left:14px;bottom:14px;z-index:550;width:264px;font-size:10px;line-height:1.45;color:var(--ink-dim)}
+  #note b{color:var(--ink-dim);font-weight:600}
+  #about-btn{position:fixed;top:14px;right:250px;z-index:600;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;color:var(--ink-dim)}
+  #about-btn:hover{color:var(--accent)}
+  #about{position:fixed;inset:0;z-index:900;background:rgba(8,7,5,.74);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;padding:20px}
+  #about.show{display:flex}
+  #about .card{max-width:540px;padding:26px 28px;line-height:1.55;font-size:14px;position:relative;max-height:90vh;overflow-y:auto}
+  #about .card h2{margin:0 0 12px;font-size:20px;font-weight:600}#about .card h2 .r{color:var(--accent)}
+  #about .card p{margin:0 0 12px;color:var(--ink-dim)}#about .card p b{color:var(--ink);font-weight:600}
+  #about .card a{color:var(--accent)}
+  #about .card .x{position:absolute;top:16px;right:20px;cursor:pointer;color:var(--ink-dim);font-size:22px}
+
+  /* ranked pins */
+  .pin{width:21px;height:21px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font:600 11px/1 'Geist Mono',monospace;color:#1a1305;background:var(--accent);
+    border:1.5px solid rgba(0,0,0,.35);box-shadow:0 2px 9px rgba(0,0,0,.55);cursor:pointer;transition:transform .1s}
+  .pin:hover{transform:scale(1.18)}
+  .pin.dim{background:#caa358;opacity:.9;width:18px;height:18px;font-size:10px}
+
+  /* ZIP danger ranking */
+  #zipbtn{width:100%;margin-bottom:4px;appearance:none;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:600;
+    color:var(--accent);background:rgba(232,176,74,.1);border:1px solid rgba(232,176,74,.4);border-radius:9px;padding:9px 0;transition:.13s}
+  #zipbtn:hover{background:rgba(232,176,74,.2)}
+  #zips{position:fixed;inset:0;z-index:900;background:rgba(8,7,5,.82);backdrop-filter:blur(5px);display:none;align-items:center;justify-content:center;padding:18px}
+  #zips.show{display:flex}
+  .zwrap{width:min(940px,96vw);max-height:92vh;display:flex;flex-direction:column;background:var(--panel-solid);
+    border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 60px rgba(0,0,0,.6);padding:20px 22px 16px;position:relative}
+  .zhead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  .zt{font-size:19px;font-weight:600}.zt span{color:var(--ink-dim);font-weight:400;font-size:15px}
+  .zsub{font-size:12px;color:var(--ink-dim);margin-top:3px}
+  .zx{cursor:pointer;color:var(--ink-dim);font-size:24px;line-height:1}.zx:hover{color:var(--accent)}
+  .zctrl{display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin:13px 0 14px}
+  #z-metric{flex:0 1 auto}
+  .zlow{font-size:12px;color:var(--ink-dim);display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
+  .zlow input{accent-color:var(--accent)}
+  .zgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:7px;overflow-y:auto;padding:2px}
+  .ztile{aspect-ratio:1/.92;border-radius:10px;padding:8px 9px;cursor:pointer;display:flex;flex-direction:column;justify-content:space-between;
+    color:#fff;transition:transform .1s;border:1px solid rgba(0,0,0,.25);overflow:hidden}
+  .ztile:hover{transform:scale(1.04);box-shadow:0 4px 16px rgba(0,0,0,.5)}
+  .ztile .zz{font-size:13.5px;font-weight:600;letter-spacing:.3px;text-shadow:0 1px 3px rgba(0,0,0,.5)}
+  .ztile .zz .flag{opacity:.85}
+  .ztile .zr{font-size:23px;font-weight:700;line-height:1;text-shadow:0 1px 4px rgba(0,0,0,.55)}
+  .ztile .zr span{font-size:11px;font-weight:500;opacity:.8}
+  .ztile .zp{font-size:10px;opacity:.82;text-shadow:0 1px 2px rgba(0,0,0,.5)}
+  .zcap{font-size:10.5px;line-height:1.5;color:var(--ink-dim);margin-top:13px;border-top:1px solid var(--line);padding-top:11px}
+  .zcap b{color:var(--ink-dim)}
+  @media (max-width:680px){ .zwrap{padding:16px 14px} .zgrid{grid-template-columns:repeat(auto-fill,minmax(82px,1fr))} .ztile .zr{font-size:20px} }
+
+  /* popups */
+  .maplibregl-popup-content{background:var(--panel-solid);color:var(--ink);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 36px rgba(0,0,0,.6);padding:13px 15px;font-size:13px}
+  .maplibregl-popup-tip{border-top-color:var(--panel-solid)!important;border-bottom-color:var(--panel-solid)!important}
+  .maplibregl-popup-close-button{color:var(--ink-dim);font-size:17px;padding:0 6px}
+  .pop h5{margin:0 0 2px;font-size:13.5px;font-weight:600}
+  .pop .sub{font-size:11px;color:var(--ink-dim);margin-bottom:9px}
+  .pop .big{font-size:25px;font-weight:600;color:var(--accent);line-height:1}
+  .pop .biglbl{font-size:11px;color:var(--ink-dim);margin-bottom:9px}
+  .pop .r{display:flex;justify-content:space-between;gap:18px;font-size:12px;margin-top:3px}
+  .pop .r span:first-child{color:var(--ink-dim)}
+  .pop .spark{display:flex;align-items:flex-end;gap:1px;height:28px;margin:9px 0 2px}
+  .pop .spark i{flex:1;background:rgba(232,176,74,.3);border-radius:1.5px 1.5px 0 0}
+  .pop .spark i.cur{background:var(--accent)}
+  .pop .sparklbl{font-size:9.5px;color:var(--ink-dim);text-align:right}
+  .maplibregl-ctrl-attrib{background:rgba(12,10,8,.7)!important}.maplibregl-ctrl-attrib a{color:var(--ink-dim)!important}
+
+  /* veil */
+  #veil{position:fixed;inset:0;z-index:1000;background:var(--bg);display:flex;align-items:center;justify-content:center;transition:opacity .6s;flex-direction:column;gap:14px}
+  #veil.hide{opacity:0;pointer-events:none}
+  #veil .ring{width:30px;height:30px;border:2.5px solid rgba(232,176,74,.25);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+  #veil .msg{font-size:13px;color:var(--ink-dim)}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  @media (max-width:760px){
+    #board{display:none}#note{display:none}#panel{width:188px}#about-btn{right:212px}
+    #time{width:auto;left:12px;right:12px;transform:none;max-width:none}#time .now{min-width:96px;font-size:12px}
+    #brand .t span{display:none}
+    #search{top:62px;left:12px;right:12px;transform:none;width:auto}
+  }
+</style>
+<script defer src="https://stats.traqqit.com/script.js" data-website-id="0cd4abd0-7c31-4d20-83d3-0ded9a90d559"></script>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div id="brand" class="glass">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.3" fill="currentColor" stroke="none"/>
+    <path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3"/></svg>
+  <div class="t"><b>Ticket Heat</b><span>Phoenix traffic tickets, crashes &amp; DUIs</span></div>
+</div>
+
+<div id="search" class="glass">
+  <svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+  <input id="q" type="text" placeholder="Find a street or corner…" autocomplete="off" spellcheck="false">
+  <button id="nearme" class="sbtn" title="Use my location" aria-label="Use my location">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><circle cx="12" cy="12" r="7.5"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3"/></svg>
+  </button>
+  <button id="sharebtn" class="sbtn" title="Copy a link to this exact view" aria-label="Copy link">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7"/><path d="M12 15V3M8 7l4-4 4 4"/></svg>
+  </button>
+</div>
+
+<div id="toast"></div>
+
+<div id="board" class="glass">
+  <div class="bh">Worst blocks · <span id="b-when">all-time</span></div>
+  <div class="bt" id="b-title">All tickets</div>
+  <div class="bs" id="b-sub">tap a block to fly there</div>
+  <div class="blist" id="b-list"></div>
+  <div class="bleg"><div class="bar"></div><div class="tk"><span>fewer</span><span id="b-legend-hi">more, this hour</span></div></div>
+</div>
+
+<div id="about-btn" class="glass" title="About this map">?</div>
+
+<div id="panel" class="glass">
+  <button id="zipbtn">▦ ZIP danger ranking</button>
+  <h4>Tickets <small>— police citations</small></h4>
+  <div class="seg cats col3" id="seg-cit">
+    <button data-v="allcit" class="on">All</button>
+    <button data-v="civil">Civil</button>
+    <button data-v="criminal">Criminal</button>
+  </div>
+  <h4>Incidents <small>— police calls</small></h4>
+  <div class="seg cats" id="seg-inc">
+    <button data-v="crash">Crashes</button>
+    <button data-v="injury">Injury</button>
+    <button data-v="fatal">Fatal</button>
+    <button data-v="hitrun">Hit &amp; run</button>
+    <button data-v="dui">Drunk drivers</button>
+    <button data-v="hazard">Hazards</button>
+    <button data-v="racing">Racing</button>
+  </div>
+  <h4>Year</h4>
+  <div class="seg yrs" id="seg-year"></div>
+  <h4>Day of week</h4>
+  <div class="seg days" id="seg-day">
+    <button data-d="-1" class="on">All</button>
+    <button data-d="0">S</button><button data-d="1">M</button><button data-d="2">T</button>
+    <button data-d="3">W</button><button data-d="4">T</button><button data-d="5">F</button><button data-d="6">S</button>
+  </div>
+</div>
+
+<div id="time" class="glass">
+  <div id="insight">&nbsp;</div>
+  <div class="trow">
+    <button class="play" id="play" title="Play through the day">▶</button>
+    <button class="alld on" id="allday" title="Show all hours combined">All day</button>
+    <div class="slwrap">
+      <div id="hist" title="When it happens, hour by hour — click a bar"></div>
+      <input type="range" id="hour" min="0" max="23" step="1" value="17" class="dim" title="Drag to pick an hour">
+    </div>
+    <div class="now" id="now-label">All day</div>
+  </div>
+</div>
+
+<div id="note"><b>History, not a prediction.</b> Where enforcement &amp; incidents <i>have</i> happened (2018–2025), block-level &amp; geocoded. Tickets = citations; crashes/DUIs = police calls.</div>
+
+<div id="foot" class="glass">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+    <circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/>
+    <path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3"/></svg>
+  part of <a href="https://traqqit.com">traqqit</a>
+</div>
+
+<div id="about">
+  <div class="card glass">
+    <span class="x" onclick="document.getElementById('about').classList.remove('show')">×</span>
+    <h2><span class="r">Ticket Heat</span> — Phoenix</h2>
+    <p>Where and when Phoenix <b>writes traffic tickets</b> — and where <b>crashes, hit-and-runs,
+      drunk drivers and street-racing calls</b> cluster. Pick a category, drag through the hours,
+      and read the worst blocks off the leaderboard. Built entirely on <b>public records</b>,
+      <span id="a-range">2018–2025</span>.</p>
+    <p><b>Two data sources, two meanings.</b> "Tickets" are police-issued
+      <a href="https://www.phoenixopendata.com/dataset/citations" target="_blank" rel="noopener">Traffic Citations</a>
+      — the city only splits these into <b>civil</b> (speeding, red-light, no-insurance…) and
+      <b>criminal</b> (DUI, suspended license, reckless…); there is no finer charge detail in any
+      public dataset. The incident categories come from police
+      <a href="https://www.phoenixopendata.com/dataset/calls-for-service" target="_blank" rel="noopener">Calls for Service</a>
+      — these are <b>dispatched/self-initiated calls</b>, not citations, so "drunk drivers" means
+      drunk-driver <i>calls</i>, not convictions.</p>
+    <p><b>It is history, not a forecast.</b> Locations are recorded to the hundred-block or
+      intersection and geocoded with the US Census geocoder, so points are approximate
+      (block-level). Patrol routes and priorities change — don't read it as a guarantee.</p>
+    <p class="mono" style="font-size:11px;color:var(--ink-dim)">Data: City of Phoenix public
+      records · map © OpenStreetMap, © CARTO · part of <a href="https://traqqit.com">traqqit</a></p>
+  </div>
+</div>
+
+<div id="zips">
+  <div class="zwrap">
+    <div class="zhead">
+      <div>
+        <div class="zt">Phoenix ZIPs by danger <span>· per resident</span></div>
+        <div class="zsub" id="z-sub">incidents per 1,000 residents · 2018–2025</div>
+      </div>
+      <span class="zx" id="z-close" title="Close">×</span>
+    </div>
+    <div class="zctrl">
+      <div class="seg cats" id="z-metric">
+        <button data-m="incN" class="on">All incidents</button>
+        <button data-m="crash">Crashes</button>
+        <button data-m="harm">Hurt &amp; killed</button>
+        <button data-m="dui">Drunk drivers</button>
+      </div>
+      <label class="zlow"><input type="checkbox" id="z-hidelow"> hide low-residential ZIPs</label>
+    </div>
+    <div class="zgrid" id="z-grid"></div>
+    <div class="zcap">Police-call incidents per 1,000 residents, 2018–2025 — a rough danger-per-resident
+      rate. Population from the Census (via OpenDataSoft); ZIP areas geocoded &amp; rolled up.
+      <b>•</b> marks <b>low-residential ZIPs</b> (downtown, the airport, the capitol) — lots of
+      through-traffic, few residents, so per-capita reads sky-high there; it's traffic volume, not
+      livability. Phoenix-city ZIPs only (Phoenix PD coverage). Tap a tile to fly there.</div>
+  </div>
+</div>
+
+<div id="veil"><div class="ring"></div><div class="msg">Mapping Phoenix's tickets &amp; crashes…</div></div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script>
+window.addEventListener('error', e => { const m=document.querySelector('#veil .msg'); if(m) m.textContent='Error: '+(e.message||e.error||e); });
+</script>
+<script>
+/* ===== Ticket Heat — single-file static map of Phoenix tickets + traffic incidents =====
+   Data: data.json (pipeline.py: grid cell × day-of-week × hour × category; per-category
+   all-time leaderboards). Citations + Calls-for-Service incidents, all client-side. */
+
+const PHX = [-112.07, 33.46];
+const VIEWS = {
+  allcit:  {label:'All tickets',     cats:['civil','criminal'], sub:'police citations'},
+  civil:   {label:'Civil tickets',   cats:['civil'],            sub:'speeding · red-light · insurance'},
+  criminal:{label:'Criminal tickets',cats:['criminal'],         sub:'DUI · suspended · reckless'},
+  crash:   {label:'Crashes',         cats:['crashN','crashI','crashF'], sub:'all accident calls'},
+  injury:  {label:'Injury crashes',  cats:['crashI','hitrunI'], sub:'crashes with injuries'},
+  fatal:   {label:'Fatal crashes',   cats:['crashF','hitrunF'], sub:'deadly crashes'},
+  hitrun:  {label:'Hit & run',       cats:['hitrunN','hitrunI','hitrunF'], sub:'hit-and-run calls'},
+  dui:     {label:'Drunk drivers',   cats:['dui'],              sub:'drunk-driver calls'},
+  hazard:  {label:'Traffic hazards', cats:['hazard'],           sub:'hazard calls'},
+  racing:  {label:'Speeding / racing',cats:['racing'],          sub:'street-racing calls'},
+};
+let D, C, R, CIDX, recByHour = [];
+let view = 'allcit', catSet = new Set(), dayF = -1, yearSel = -1, hour = 17, allHours = true, timer = null;
+let SCALE = 1, cellHourV = null, cellTotV = null, markers = [], locMarker = null, restoring = false;
+let prof = {hour:[], dow:[], year:[]};
+const yearKey = () => yearSel === -1 ? 'all' : String(D.meta.years[yearSel]);
+const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+const clampInt = (v, lo, hi) => { v = parseInt(v, 10); return isNaN(v) ? lo : Math.max(lo, Math.min(hi, v)); };
+function toast(msg){ const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 3800); }
+const clearToast = () => document.getElementById('toast').classList.remove('show');
+
+const map = new maplibregl.Map({
+  container: 'map',
+  style: {version:8, sources:{
+      base:{type:'raster', tiles:carto('dark_nolabels'), tileSize:256,
+            attribution:'© OpenStreetMap © CARTO · data: City of Phoenix public records'},
+      labels:{type:'raster', tiles:carto('dark_only_labels'), tileSize:256},
+    }, layers:[
+      {id:'bg', type:'background', paint:{'background-color':'#0c0a08'}},
+      {id:'base', type:'raster', source:'base'},
+      {id:'labels', type:'raster', source:'labels'},
+    ]},
+  center: PHX, zoom: 10.2, minZoom: 8, maxZoom: 16, attributionControl: false,
+});
+function carto(s){return ['a','b','c'].map(h=>`https://${h}.basemaps.cartocdn.com/${s}/{z}/{x}/{y}.png?key=cb1_2vot_1_36d6af59253ddb7eb9908eea`);}
+map.addControl(new maplibregl.AttributionControl({compact:true}), 'bottom-right');
+map.addControl(new maplibregl.NavigationControl({showCompass:false}), 'bottom-right');
+
+Promise.all([fetch('data.json').then(r=>r.json()), new Promise(r=>map.on('load',r))])
+  .then(([data]) => { D=data; init(); })
+  .catch(err => { document.querySelector('#veil .msg').textContent='Could not load the data. Try a refresh.'; console.error(err); });
+
+function init(){
+  C = D.lng.length; R = D.ci.length;
+  CIDX = {}; D.cats.forEach((c,i)=>CIDX[c]=i);
+  for (let h=0;h<24;h++) recByHour[h] = [];
+  for (let i=0;i<R;i++) recByHour[D.hr[i]].push(i);
+
+  map.addSource('cites', {type:'geojson', data:{type:'FeatureCollection', features:[]}});
+  map.addLayer({ id:'heat', type:'heatmap', source:'cites', paint:{
+      'heatmap-weight':['interpolate',['linear'],['get','w'], 0,0, 1,1],
+      'heatmap-intensity':['interpolate',['linear'],['zoom'], 8,1.3, 11,1.8, 14,2.6],
+      'heatmap-radius':['interpolate',['linear'],['zoom'], 8,13, 11,22, 14,42, 16,64],
+      'heatmap-opacity':['interpolate',['linear'],['zoom'], 8,0.9, 15,0.82],
+      'heatmap-color':['interpolate',['linear'],['heatmap-density'],
+        0,'rgba(0,0,0,0)', 0.12,'#2b1a55', 0.3,'#2f6df0', 0.5,'#1fb6a6', 0.68,'#bfe04a', 0.85,'#f5b22e', 1,'#ef5a3a'],
+    }}, 'labels');
+
+  document.getElementById('a-range').textContent = `${D.meta.date_min} → ${D.meta.date_max}`;
+  wireUI();
+  if (!D.zips || !D.zips.length) document.getElementById('zipbtn').style.display = 'none';
+  restoring = true;
+  restore();                                         // apply any shared #hash state + map position
+  catSet = new Set(VIEWS[view].cats.map(c=>CIDX[c]));
+  applyView();
+  restoring = false;
+  map.on('click', onMapClick);
+  map.on('moveend', writeHash);
+  map.getCanvas().style.cursor = 'crosshair';
+  document.getElementById('veil').classList.add('hide');
+}
+
+const fmtN = n => Math.round(n).toLocaleString('en-US');
+const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const fmtHour = h => { const ap=h<12?'AM':'PM'; let x=h%12; if(!x)x=12; return `${x} ${ap}`; };
+
+// ---- per (view, year) precompute (all-days) for popups + scaling ----
+const inSel = i => catSet.has(D.ct[i]) && (yearSel===-1 || D.yr[i]===yearSel);
+function recompute(){
+  cellHourV = new Float32Array(C*24); cellTotV = new Float64Array(C);
+  for (let i=0;i<R;i++){ if (!inSel(i)) continue;
+    cellHourV[D.ci[i]*24 + D.hr[i]] += D.n[i]; cellTotV[D.ci[i]] += D.n[i]; }
+}
+function applyView(){
+  recompute();
+  updateTemporal();
+  document.getElementById('b-title').textContent = VIEWS[view].label;
+  document.getElementById('b-sub').textContent = VIEWS[view].sub + ' · tap to fly';
+  document.getElementById('b-when').textContent = yearSel===-1 ? 'all-time' : D.meta.years[yearSel];
+  renderBoard(); renderPins(); setScale(); render();
+  writeHash();
+}
+const setView = v => { view=v; catSet=new Set(VIEWS[v].cats.map(c=>CIDX[c])); applyView(); };
+const setYear = y => { yearSel=y; applyView(); };
+
+function weights(){
+  const w = new Float64Array(C);
+  const add = i => { if (inSel(i) && (dayF===-1 || D.dw[i]===dayF)) w[D.ci[i]] += D.n[i]; };
+  if (allHours) for (let i=0;i<R;i++) add(i);
+  else for (const i of recByHour[hour]) add(i);
+  return w;
+}
+function setScale(){
+  let best = 0;
+  if (allHours){ const w=weights(); for (let c=0;c<C;c++) if(w[c]>best) best=w[c]; }
+  else { const tmp=new Float64Array(C);
+    for (let h=0;h<24;h++){ tmp.fill(0); let mx=0;
+      for (const i of recByHour[h]){ if (!inSel(i)||(dayF!==-1&&D.dw[i]!==dayF)) continue;
+        const c=D.ci[i]; tmp[c]+=D.n[i]; if(tmp[c]>mx)mx=tmp[c]; }
+      if (mx>best) best=mx; } }
+  SCALE = Math.max(1, best*0.40);
+  map.setPaintProperty('heat','heatmap-weight',['interpolate',['linear'],['get','w'], 0,0, SCALE,1]);
+}
+function render(){
+  const w = weights(), feats = [];
+  for (let c=0;c<C;c++) if (w[c]>0)
+    feats.push({type:'Feature', geometry:{type:'Point', coordinates:[D.lng[c],D.lat[c]]}, properties:{w:w[c]}});
+  map.getSource('cites').setData({type:'FeatureCollection', features:feats});
+  const d = dayF===-1 ? 'Any day' : DAYS[dayF];
+  document.getElementById('now-label').innerHTML = allHours ? `${d} · <b>all day</b>` : `${d} · <b>${fmtHour(hour)}</b>`;
+  document.getElementById('b-legend-hi').textContent = allHours ? 'more, all day' : 'more, this hour';
+  highlightHour();
+}
+
+// ---- temporal: hour histogram, day/year auto-insight ----
+function setAll(on){ allHours=on; document.getElementById('allday').classList.toggle('on',on);
+  document.getElementById('hour').classList.toggle('dim',on); setScale(); render(); writeHash(); }
+function computeProfiles(){
+  const H=new Float64Array(24), W=new Float64Array(7), Y=new Float64Array(D.meta.years.length);
+  for (let i=0;i<R;i++){ if (!catSet.has(D.ct[i])) continue;
+    const n=D.n[i], yy=D.yr[i], dd=D.dw[i], yOk=yearSel===-1||yy===yearSel, dOk=dayF===-1||dd===dayF;
+    if (yOk && dOk) H[D.hr[i]]+=n;        // hour-of-day profile (respects year + day filters)
+    if (yOk) W[dd]+=n;                    // day-of-week profile (respects year, all days)
+    if (dOk) Y[yy]+=n; }                  // by-year profile (respects day, all years)
+  prof = {hour:H, dow:W, year:Y};
+}
+function renderHistogram(){
+  const el=document.getElementById('hist'), mx=Math.max(1,...prof.hour); el.innerHTML='';
+  for (let h=0;h<24;h++){ const b=document.createElement('div'); b.className='hb';
+    b.style.height=(5+95*prof.hour[h]/mx)+'%'; b.title=`${fmtHour(h)} · ${fmtN(prof.hour[h])}`;
+    b.onclick=()=>{ if(allHours) setAll(false); hour=h; document.getElementById('hour').value=h; render(); writeHash(); };
+    el.appendChild(b); }
+  highlightHour();
+}
+function highlightHour(){
+  const bars=document.querySelectorAll('#hist .hb');
+  for (let h=0;h<bars.length;h++) bars[h].classList.toggle('cur', !allHours && h===hour);
+}
+function renderInsight(){
+  const el=document.getElementById('insight'), H=prof.hour, W=prof.dow, Y=prof.year;
+  let total=0; for (const v of H) total+=v;
+  if (!total){ el.innerHTML='&nbsp;'; return; }
+  const peakH=H.indexOf(Math.max(...H)), peakD=W.indexOf(Math.max(...W));
+  let trend='';
+  if (yearSel===-1){ let fi=-1, li=-1;
+    for (let i=0;i<Y.length;i++) if (Y[i]>0){ if(fi<0) fi=i; li=i; }
+    if (fi>=0 && li>fi){ const pct=Math.round(100*(Y[li]-Y[fi])/Y[fi]);
+      trend = ` · ${Math.abs(pct)<8?'steady':(pct>0?'▲ '+pct:'▼ '+Math.abs(pct))+'%'} since ${D.meta.years[fi]}`; } }
+  const dayTxt = dayF===-1 ? ` · busiest <b>${DAYS[peakD]}</b>` : '';
+  el.innerHTML = `<b>${VIEWS[view].label}</b> peak around <b>${fmtHour(peakH)}</b>${dayTxt}${trend}`;
+}
+function updateTemporal(){ computeProfiles(); renderHistogram(); renderInsight(); }
+
+// ---- leaderboard ----
+function renderBoard(){
+  const rows = (D.lb[view]||{})[yearKey()] || [];
+  document.getElementById('b-list').innerHTML = rows.map((r,i)=>
+    `<div class="lb" data-i="${i}"><div class="rk">${i+1}</div>`+
+    `<div class="mn"><div class="ad">${r.a}</div></div>`+
+    `<div class="ct">${fmtN(r.n)}</div></div>`).join('') ||
+    '<div class="bs">No data in this category.</div>';
+}
+function focusBlock(i){
+  const r = ((D.lb[view]||{})[yearKey()]||[])[i]; if (!r) return;
+  map.flyTo({center:r.g, zoom:Math.max(14, map.getZoom()), speed:1.4});
+  const when = yearSel===-1 ? `all-time, ${D.meta.date_min.slice(0,4)}–${D.meta.date_max.slice(0,4)}` : D.meta.years[yearSel];
+  const html = `<div class="pop"><h5>#${i+1} · ${r.a}</h5>`+
+    `<div class="sub">${VIEWS[view].label} · ${yearSel===-1?'all-time':D.meta.years[yearSel]}</div>`+
+    `<div class="big">${fmtN(r.n)}</div><div class="biglbl">${VIEWS[view].sub}, ${when}</div></div>`;
+  new maplibregl.Popup({closeButton:true, maxWidth:'250px'}).setLngLat(r.g).setHTML(html).addTo(map);
+}
+
+// ---- ranked pins (top spots for current view) ----
+function renderPins(){
+  markers.forEach(m=>m.remove()); markers = [];
+  ((D.lb[view]||{})[yearKey()]||[]).slice(0,12).forEach((r,i)=>{
+    const el = document.createElement('div');
+    el.className = 'pin' + (i>2?' dim':''); el.textContent = i+1;
+    el.title = `#${i+1} ${r.a} — ${fmtN(r.n)}`;
+    el.onclick = ev => { ev.stopPropagation(); focusBlock(i); };
+    markers.push(new maplibregl.Marker({element:el, anchor:'center'}).setLngLat(r.g).addTo(map));
+  });
+}
+
+// ---- nearest cell + its stats popup (shared by map click, near-me, search) ----
+function nearestCell(lng,lat){
+  const cosw = 1/0.835, g = D.meta.grid_m/111000;
+  let best=-1, bd=(g*2.2)**2;
+  for (let c=0;c<C;c++){ const dx=(D.lng[c]-lng)/cosw, dy=D.lat[c]-lat, d=dx*dx+dy*dy; if (d<bd){bd=d;best=c;} }
+  return best;
+}
+function sparkHTML(off){            // this block's own by-hour profile (a mini histogram)
+  let mx=1; for (let h=0;h<24;h++) if (cellHourV[off+h]>mx) mx=cellHourV[off+h];
+  let s='<div class="spark">';
+  for (let h=0;h<24;h++) s+=`<i class="${!allHours&&h===hour?'cur':''}" style="height:${Math.max(6,Math.round(100*cellHourV[off+h]/mx))}%"></i>`;
+  return s+'</div><div class="sparklbl">12 AM → 11 PM</div>';
+}
+function cellPopupHTML(best, title){
+  const tot = cellTotV[best];
+  let bh=0, bv=-1; for (let h=0;h<24;h++){ const v=cellHourV[best*24+h]; if (v>bv){bv=v;bh=h;} }
+  const when = yearSel===-1 ? `${D.meta.date_min.slice(0,4)}–${D.meta.date_max.slice(0,4)}` : D.meta.years[yearSel];
+  return `<div class="pop"><h5>${title || D.lab[best] || 'This block'}</h5>`+
+    `<div class="sub">${VIEWS[view].label} · ${yearSel===-1?'all-time':D.meta.years[yearSel]} · ~${D.meta.grid_m} m</div>`+
+    `<div class="big">${fmtN(tot)}</div><div class="biglbl">${VIEWS[view].sub}, ${when}</div>`+
+    (tot?sparkHTML(best*24):'')+
+    `<div class="r"><span>Busiest hour</span><span>${fmtHour(bh)}</span></div>`+
+    (allHours?'':`<div class="r"><span>At ${fmtHour(hour)}</span><span>${fmtN(cellHourV[best*24+hour])}</span></div>`)+`</div>`;
+}
+function onMapClick(e){
+  const best = nearestCell(e.lngLat.lng, e.lngLat.lat);
+  if (best<0 || !cellTotV[best]) return;
+  new maplibregl.Popup({closeButton:true, maxWidth:'240px'})
+    .setLngLat([D.lng[best],D.lat[best]]).setHTML(cellPopupHTML(best)).addTo(map);
+}
+
+// ---- fly to a point, mark it, show the nearest block's stats (near-me + search) ----
+function gotoLoc(lng,lat,label){
+  map.flyTo({center:[lng,lat], zoom:Math.max(14.2, map.getZoom()), speed:1.4});
+  if (locMarker) locMarker.remove();
+  const el = document.createElement('div'); el.className = 'locpin';
+  locMarker = new maplibregl.Marker({element:el, anchor:'center'}).setLngLat([lng,lat]).addTo(map);
+  const best = nearestCell(lng,lat);
+  const pop = new maplibregl.Popup({closeButton:true, maxWidth:'250px'}).setLngLat([lng,lat]);
+  if (best>=0 && cellTotV[best]) pop.setHTML(cellPopupHTML(best, label));
+  else pop.setHTML(`<div class="pop"><h5>${label||'Here'}</h5><div class="sub">No ${VIEWS[view].label.toLowerCase()} `+
+    `recorded right here (${yearSel===-1?'2018–2025':D.meta.years[yearSel]}). Pan or zoom out.</div></div>`);
+  pop.addTo(map);
+}
+function nearMe(){
+  if (!navigator.geolocation){ toast('Location isn’t supported here'); return; }
+  const btn = document.getElementById('nearme'); btn.classList.add('busy'); toast('Locating you…');
+  navigator.geolocation.getCurrentPosition(p => {
+    btn.classList.remove('busy'); clearToast();
+    const lng=p.coords.longitude, lat=p.coords.latitude;
+    if (lng<-113.6||lng>-110.9||lat<32.5||lat>34.6) toast('Heads up — you look to be outside metro Phoenix, which is all this map covers.');
+    gotoLoc(lng, lat, 'You are here');
+  }, err => { btn.classList.remove('busy'); toast(err.code===1?'Location permission denied':'Couldn’t get your location'); },
+  {enableHighAccuracy:true, timeout:10000, maximumAge:60000});
+}
+async function search(){
+  const q = document.getElementById('q').value.trim(); if (!q) return;
+  toast('Searching…');
+  try{
+    const addr = /phoenix|,\s*az/i.test(q) ? q : q + ', Phoenix, AZ';
+    const r = await fetch('/geocode?address=' + encodeURIComponent(addr));
+    const d = await r.json();
+    const m = d.result && d.result.addressMatches && d.result.addressMatches[0];
+    if (!m){ toast('No match — try “Street & Cross St” or a full address'); return; }
+    clearToast();
+    gotoLoc(+m.coordinates.x, +m.coordinates.y, m.matchedAddress.replace(/,\s*\d{5}.*$/,'').replace(/,\s*USA$/i,''));
+  }catch(e){ toast('Search is unavailable right now'); }
+}
+
+// ---- shareable deep-link (URL hash) ----
+function serialize(){
+  const c = map.getCenter(), p = new URLSearchParams();
+  p.set('v', view);
+  if (yearSel!==-1) p.set('y', D.meta.years[yearSel]);
+  if (dayF!==-1) p.set('d', dayF);
+  if (!allHours) p.set('h', hour);
+  p.set('z', map.getZoom().toFixed(2));
+  p.set('at', c.lng.toFixed(4)+','+c.lat.toFixed(4));
+  return p.toString();
+}
+const writeHash = debounce(() => { if (!restoring) history.replaceState(null, '', '#'+serialize()); }, 350);
+function syncControls(){
+  document.querySelectorAll('#seg-cit button,#seg-inc button').forEach(b=>b.classList.toggle('on', b.dataset.v===view));
+  document.querySelectorAll('#seg-day button').forEach(b=>b.classList.toggle('on', +b.dataset.d===dayF));
+  document.querySelectorAll('#seg-year button').forEach(b=>b.classList.toggle('on', +b.dataset.y===yearSel));
+  const hr = document.getElementById('hour'); hr.classList.toggle('dim', allHours); hr.value = hour;
+  document.getElementById('allday').classList.toggle('on', allHours);
+}
+function restore(){
+  const h = location.hash.slice(1); if (!h) return;
+  const p = new URLSearchParams(h);
+  if (p.has('v') && VIEWS[p.get('v')]) view = p.get('v');
+  if (p.has('y')){ const yi = D.meta.years.indexOf(+p.get('y')); if (yi>=0) yearSel = yi; }
+  if (p.has('d')) dayF = clampInt(p.get('d'), -1, 6);
+  if (p.has('h')){ allHours = false; hour = clampInt(p.get('h'), 0, 23); }
+  if (p.has('at')){ const a = p.get('at').split(',').map(Number);
+    if (a.length===2 && isFinite(a[0]) && isFinite(a[1])) map.jumpTo({center:[a[0],a[1]], zoom:+p.get('z')||11}); }
+  syncControls();
+}
+
+// ---- ZIP per-capita tile ranking ----
+const LOWPOP = 12000;                 // below this = low-residential (downtown/airport) — flag, don't trust per-capita
+const ZMETRICS = {                    // zip metric -> incident cats to sum (null = all incidents)
+  incN:  {cats: null},
+  crash: {cats: ['crashN','crashI','crashF']},
+  harm:  {cats: ['crashI','crashF','hitrunI','hitrunF']},   // injury + fatal = people hurt or killed
+  dui:   {cats: ['dui']},
+};
+let zMetric = 'incN', zHideLow = false;
+const zipRate = (z, m) => { if (z.pop<=0) return 0;
+  const cats = ZMETRICS[m].cats;
+  return 1000 * (cats ? cats.reduce((s,c)=>s+(z.inc[c]||0),0) : z.incN) / z.pop; };
+function renderZips(){
+  const Z = (D.zips||[]).filter(z=>z.pop>0);
+  const resRates = Z.filter(z=>z.pop>=LOWPOP).map(z=>zipRate(z,zMetric));
+  const cap = Math.max(1, ...resRates) * 1.05;     // calibrate colour to residential ZIPs; outliers clamp red
+  let list = Z.slice().sort((a,b)=>zipRate(b,zMetric)-zipRate(a,zMetric));
+  if (zHideLow) list = list.filter(z=>z.pop>=LOWPOP);
+  document.getElementById('z-grid').innerHTML = list.map(z=>{
+    const r=zipRate(z,zMetric), t=Math.min(1,r/cap), hue=Math.round(125*(1-t)), low=z.pop<LOWPOP;
+    return `<div class="ztile" data-zip="${z.z}" style="background:hsl(${hue},64%,${Math.round(34+t*6)}%)">`+
+      `<div class="zz">${z.z}${low?' <span class="flag">•</span>':''}</div>`+
+      `<div class="zr">${Math.round(r)}<span>/1k</span></div>`+
+      `<div class="zp">${Math.round(z.pop/1000)}k residents</div></div>`;
+  }).join('') || '<div class="zsub">No data.</div>';
+}
+function openZips(){ renderZips(); document.getElementById('zips').classList.add('show'); }
+function closeZips(){ document.getElementById('zips').classList.remove('show'); }
+
+// ---- UI wiring ----
+function wireUI(){
+  const hr = document.getElementById('hour');
+  hr.oninput = e => { if (allHours) setAll(false); hour=+e.target.value; render(); };
+  hr.onchange = writeHash;
+  document.getElementById('allday').onclick = () => setAll(!allHours);
+  document.getElementById('play').onclick = function(){
+    if (timer){ clearInterval(timer); timer=null; this.textContent='▶'; return; }
+    if (allHours) setAll(false);
+    this.textContent='⏸';
+    timer = setInterval(()=>{ hour=(hour+1)%24; hr.value=hour; render(); }, 850);
+  };
+  const cats = document.querySelectorAll('#seg-cit button, #seg-inc button');
+  cats.forEach(b => b.onclick = () => {
+    cats.forEach(x=>x.classList.remove('on')); b.classList.add('on'); setView(b.dataset.v);
+  });
+  document.getElementById('seg-day').onclick = e => { const b=e.target.closest('button'); if(!b) return;
+    document.querySelectorAll('#seg-day button').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+    dayF=+b.dataset.d; updateTemporal(); setScale(); render(); writeHash(); };
+  const yseg = document.getElementById('seg-year');
+  yseg.innerHTML = '<button data-y="-1" class="on">All</button>' +
+    D.meta.years.map((y,i)=>`<button data-y="${i}">${y}</button>`).join('');
+  yseg.onclick = e => { const b=e.target.closest('button'); if(!b) return;
+    yseg.querySelectorAll('button').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+    setYear(+b.dataset.y); };
+  document.getElementById('b-list').onclick = e => { const r=e.target.closest('.lb'); if(r) focusBlock(+r.dataset.i); };
+  const about = document.getElementById('about');
+  document.getElementById('about-btn').onclick = () => about.classList.add('show');
+  about.onclick = e => { if (e.target===about) about.classList.remove('show'); };
+  // ZIP danger ranking
+  document.getElementById('zipbtn').onclick = openZips;
+  document.getElementById('z-close').onclick = closeZips;
+  document.getElementById('zips').onclick = e => { if (e.target.id==='zips') closeZips(); };
+  document.getElementById('z-metric').onclick = e => { const b=e.target.closest('button'); if(!b) return;
+    document.querySelectorAll('#z-metric button').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+    zMetric=b.dataset.m; document.getElementById('z-sub').textContent=`${b.textContent} per 1,000 residents · 2018–2025`; renderZips(); };
+  document.getElementById('z-hidelow').onchange = e => { zHideLow=e.target.checked; renderZips(); };
+  document.getElementById('z-grid').onclick = e => { const t=e.target.closest('.ztile'); if(!t) return;
+    const z=(D.zips||[]).find(x=>x.z===t.dataset.zip); if(!z) return;
+    closeZips(); map.flyTo({center:z.c, zoom:12.4, speed:1.3}); };
+  // search / near-me / share
+  document.getElementById('nearme').onclick = nearMe;
+  document.getElementById('q').addEventListener('keydown', e => { if (e.key==='Enter') search(); });
+  document.querySelector('#search .si').onclick = search;
+  document.getElementById('sharebtn').onclick = () => {
+    history.replaceState(null, '', '#'+serialize());
+    if (navigator.clipboard) navigator.clipboard.writeText(location.href)
+      .then(()=>toast('Link copied to clipboard')).catch(()=>toast('Copy the link from your address bar'));
+    else toast('Copy the link from your address bar');
+  };
+}
+</script>
+</body>
+</html>

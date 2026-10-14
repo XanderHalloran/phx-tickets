@@ -1,0 +1,5 @@
+# Raw pulls from Phoenix Open Data (~50 MB) — `py pipeline.py` re-downloads them.
+# geocode_cache.csv IS committed: Census geocoding is the slow step.
+citations_raw.csv
+calls_raw.csv
+__pycache__/
