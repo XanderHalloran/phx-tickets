@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ticket Heat — where &amp; when Phoenix tickets, crashes &amp; DUIs happen</title>
 <meta name="description" content="A dark heatmap of Phoenix traffic enforcement and incidents: where & when police write tickets, and where crashes, hit-and-runs, drunk-driver and street-racing calls cluster. Slide through the hours, see the worst blocks. Public records, 2018–2025. History, not a prediction.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23d97706'/%3E%3Cpath d='M5.5 11h21v3.2a1.8 1.8 0 0 0 0 3.6V21h-21v-3.2a1.8 1.8 0 0 0 0-3.6z' fill='%23fff'/%3E%3Cpath d='M19.4 12.4v7.2' stroke='%23d97706' stroke-width='1.8' stroke-dasharray='2 2'/%3E%3C/svg%3E">
@@ -63,11 +63,11 @@
   #board .blist{overflow-y:auto;margin:0 -5px;padding:0 5px}
   #board .blist::-webkit-scrollbar{width:7px}
   #board .blist::-webkit-scrollbar-thumb{background:rgba(232,217,181,.18);border-radius:4px}
-  .lb{display:flex;align-items:center;gap:9px;padding:6px 6px;border-radius:8px;cursor:pointer;transition:.12s}
+  .lb{display:flex;align-items:center;gap:9px;padding:6px 6px;border-radius:8px;cursor:pointer;transition:.12s;width:100%;border:0;background:none;color:inherit;font:inherit;text-align:left}
   .lb:hover{background:rgba(255,255,255,.06)}
   .lb .rk{font-family:'Geist Mono',monospace;font-size:12px;color:var(--accent);font-weight:600;width:20px;text-align:right;flex:none}
   .lb .mn{flex:1;min-width:0}
-  .lb .ad{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lb .ad{display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .lb .ct{font-size:13px;font-weight:600;flex:none;color:var(--ink)}
   .lb .ct span{font-size:10px;color:var(--ink-dim);font-weight:400}
   #board .bleg{border-top:1px solid var(--line);margin-top:7px;padding-top:8px}
@@ -514,9 +514,9 @@ function updateTemporal(){ computeProfiles(); renderHistogram(); renderInsight()
 function renderBoard(){
   const rows = (D.lb[view]||{})[yearKey()] || [];
   document.getElementById('b-list').innerHTML = rows.map((r,i)=>
-    `<div class="lb" data-i="${i}"><div class="rk">${i+1}</div>`+
-    `<div class="mn"><div class="ad">${r.a}</div></div>`+
-    `<div class="ct">${fmtN(r.n)}</div></div>`).join('') ||
+    `<button type="button" class="lb" data-i="${i}"><span class="rk">${i+1}</span>`+
+    `<span class="mn"><span class="ad">${r.a}</span></span>`+
+    `<span class="ct">${fmtN(r.n)}</span></button>`).join('') ||
     '<div class="bs">No data in this category.</div>';
 }
 function focusBlock(i){
