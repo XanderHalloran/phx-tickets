@@ -51,7 +51,7 @@
   /* brand */
   #brand{position:fixed;top:14px;left:14px;z-index:600;display:flex;align-items:center;gap:10px;padding:9px 14px 9px 11px}
   #brand svg{width:23px;height:23px;color:var(--accent);flex:none}
-  #brand .t b{font-weight:600;font-size:16.5px;letter-spacing:.2px}
+  #brand .t h1{margin:0;font-weight:600;font-size:16.5px;letter-spacing:.2px}
   #brand .t span{display:block;font-size:10.5px;color:var(--ink-dim);margin-top:1px}
 
   /* leaderboard (left) */
@@ -77,9 +77,9 @@
 
   /* category + day panel (right) */
   #panel{position:fixed;top:14px;right:14px;z-index:600;width:226px;padding:12px;max-height:calc(100vh - 28px);overflow-y:auto}
-  #panel h4{margin:13px 0 6px;font-size:10px;letter-spacing:1.1px;text-transform:uppercase;color:var(--ink-dim);font-weight:500}
-  #panel h4:first-child{margin-top:0}
-  #panel h4 small{text-transform:none;letter-spacing:0;color:#8a8470;font-weight:400;font-size:10px}
+  #panel h2{margin:13px 0 6px;font-size:10px;letter-spacing:1.1px;text-transform:uppercase;color:var(--ink-dim);font-weight:500}
+  #panel h2:first-child{margin-top:0}
+  #panel h2 small{text-transform:none;letter-spacing:0;color:#8a8470;font-weight:400;font-size:10px}
   .seg{display:flex;gap:5px;flex-wrap:wrap}
   .seg.col3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px}
   .seg.days{display:grid;grid-template-columns:repeat(8,1fr);gap:4px}
@@ -170,7 +170,7 @@
   .maplibregl-popup-content{background:var(--panel-solid);color:var(--ink);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 36px rgba(0,0,0,.6);padding:13px 15px;font-size:13px}
   .maplibregl-popup-tip{border-top-color:var(--panel-solid)!important;border-bottom-color:var(--panel-solid)!important}
   .maplibregl-popup-close-button{color:var(--ink-dim);font-size:17px;padding:0 6px}
-  .pop h5{margin:0 0 2px;font-size:13.5px;font-weight:600}
+  .pop h3{margin:0 0 2px;font-size:13.5px;font-weight:600}
   .pop .sub{font-size:11px;color:var(--ink-dim);margin-bottom:9px}
   .pop .big{font-size:25px;font-weight:600;color:var(--accent);line-height:1}
   .pop .biglbl{font-size:11px;color:var(--ink-dim);margin-bottom:9px}
@@ -200,18 +200,19 @@
 </head>
 <body>
 
+<main>
 <div id="map"></div>
 
 <div id="brand" class="glass">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
     <circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.3" fill="currentColor" stroke="none"/>
     <path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3"/></svg>
-  <div class="t"><b>Ticket Heat</b><span>Phoenix traffic tickets, crashes &amp; DUIs</span></div>
+  <div class="t"><h1>Ticket Heat</h1><span>Phoenix traffic tickets, crashes &amp; DUIs</span></div>
 </div>
 
 <div id="search" class="glass">
   <svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-  <input id="q" type="text" placeholder="Find a street or corner…" autocomplete="off" spellcheck="false">
+  <input id="q" type="text" placeholder="Find a street or corner…" aria-label="Find a street or corner" autocomplete="off" spellcheck="false">
   <button id="nearme" class="sbtn" title="Use my location" aria-label="Use my location">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><circle cx="12" cy="12" r="7.5"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3"/></svg>
   </button>
@@ -234,13 +235,13 @@
 
 <div id="panel" class="glass">
   <button id="zipbtn">▦ ZIP danger ranking</button>
-  <h4>Tickets <small>— police citations</small></h4>
+  <h2>Tickets <small>— police citations</small></h2>
   <div class="seg cats col3" id="seg-cit">
     <button data-v="allcit" class="on">All</button>
     <button data-v="civil">Civil</button>
     <button data-v="criminal">Criminal</button>
   </div>
-  <h4>Incidents <small>— police calls</small></h4>
+  <h2>Incidents <small>— police calls</small></h2>
   <div class="seg cats" id="seg-inc">
     <button data-v="crash">Crashes</button>
     <button data-v="injury">Injury</button>
@@ -250,9 +251,9 @@
     <button data-v="hazard">Hazards</button>
     <button data-v="racing">Racing</button>
   </div>
-  <h4>Year</h4>
+  <h2>Year</h2>
   <div class="seg yrs" id="seg-year"></div>
-  <h4>Day of week</h4>
+  <h2>Day of week</h2>
   <div class="seg days" id="seg-day">
     <button data-d="-1" class="on">All</button>
     <button data-d="0">S</button><button data-d="1">M</button><button data-d="2">T</button>
@@ -267,7 +268,7 @@
     <button class="alld on" id="allday" title="Show all hours combined">All day</button>
     <div class="slwrap">
       <div id="hist" title="When it happens, hour by hour — click a bar"></div>
-      <input type="range" id="hour" min="0" max="23" step="1" value="17" class="dim" title="Drag to pick an hour">
+      <input type="range" id="hour" min="0" max="23" step="1" value="17" class="dim" title="Drag to pick an hour" aria-label="Hour of day">
     </div>
     <div class="now" id="now-label">All day</div>
   </div>
@@ -334,6 +335,7 @@
 </div>
 
 <div id="veil"><div class="ring"></div><div class="msg">Mapping Phoenix's tickets &amp; crashes…</div></div>
+</main>
 
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script>
@@ -523,7 +525,7 @@ function focusBlock(i){
   const r = ((D.lb[view]||{})[yearKey()]||[])[i]; if (!r) return;
   map.flyTo({center:r.g, zoom:Math.max(14, map.getZoom()), speed:1.4});
   const when = yearSel===-1 ? `all-time, ${D.meta.date_min.slice(0,4)}–${D.meta.date_max.slice(0,4)}` : D.meta.years[yearSel];
-  const html = `<div class="pop"><h5>#${i+1} · ${r.a}</h5>`+
+  const html = `<div class="pop"><h3>#${i+1} · ${r.a}</h3>`+
     `<div class="sub">${VIEWS[view].label} · ${yearSel===-1?'all-time':D.meta.years[yearSel]}</div>`+
     `<div class="big">${fmtN(r.n)}</div><div class="biglbl">${VIEWS[view].sub}, ${when}</div></div>`;
   new maplibregl.Popup({closeButton:true, maxWidth:'250px'}).setLngLat(r.g).setHTML(html).addTo(map);
@@ -558,7 +560,7 @@ function cellPopupHTML(best, title){
   const tot = cellTotV[best];
   let bh=0, bv=-1; for (let h=0;h<24;h++){ const v=cellHourV[best*24+h]; if (v>bv){bv=v;bh=h;} }
   const when = yearSel===-1 ? `${D.meta.date_min.slice(0,4)}–${D.meta.date_max.slice(0,4)}` : D.meta.years[yearSel];
-  return `<div class="pop"><h5>${title || D.lab[best] || 'This block'}</h5>`+
+  return `<div class="pop"><h3>${title || D.lab[best] || 'This block'}</h3>`+
     `<div class="sub">${VIEWS[view].label} · ${yearSel===-1?'all-time':D.meta.years[yearSel]} · ~${D.meta.grid_m} m</div>`+
     `<div class="big">${fmtN(tot)}</div><div class="biglbl">${VIEWS[view].sub}, ${when}</div>`+
     (tot?sparkHTML(best*24):'')+
@@ -581,7 +583,7 @@ function gotoLoc(lng,lat,label){
   const best = nearestCell(lng,lat);
   const pop = new maplibregl.Popup({closeButton:true, maxWidth:'250px'}).setLngLat([lng,lat]);
   if (best>=0 && cellTotV[best]) pop.setHTML(cellPopupHTML(best, label));
-  else pop.setHTML(`<div class="pop"><h5>${label||'Here'}</h5><div class="sub">No ${VIEWS[view].label.toLowerCase()} `+
+  else pop.setHTML(`<div class="pop"><h3>${label||'Here'}</h3><div class="sub">No ${VIEWS[view].label.toLowerCase()} `+
     `recorded right here (${yearSel===-1?'2018–2025':D.meta.years[yearSel]}). Pan or zoom out.</div></div>`);
   pop.addTo(map);
 }
